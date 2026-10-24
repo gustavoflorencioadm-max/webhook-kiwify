@@ -26,7 +26,7 @@ h1 { font-size:28px; margin:0 0 4px; }
 </style>
 </head>
 <body>
-<div class="banner">WEBHOOK KIWIFY ATIVO • https://webhook-kiwify-u4qe.onrender.com • Vendas + Status dos Agentes</div>
+<div class="banner">WEBHOOK KIWIFY ATIVO • Faturamento só sobe com pagamento confirmado</div>
 
 <div class="container">
   <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; margin:16px 0;">
@@ -36,7 +36,7 @@ h1 { font-size:28px; margin:0 0 4px; }
     </div>
     <div style="text-align:right;">
       <div class="faturamento" id="faturamento">R$ 0,00</div>
-      <div style="font-size:12px; color:#9ca3af;">Faturamento Kiwify</div>
+      <div style="font-size:12px; color:#9ca3af;">Faturamento confirmado</div>
       <button class="btn" onclick="atualizarTudo()">Atualizar agora</button>
     </div>
   </div>
@@ -44,7 +44,7 @@ h1 { font-size:28px; margin:0 0 4px; }
   <div class="grid grid-4">
     <div class="kpi">Agentes ativos: <b id="kpi-ativos">0</b></div>
     <div class="kpi">Tarefas em andamento: <b id="kpi-tarefas">0</b></div>
-    <div class="kpi">Aprovações pendentes: <b>0</b></div>
+    <div class="kpi">Pix gerados: <b id="kpi-pix">0</b></div>
     <div class="kpi">Última atualização: <span id="ultima">agora</span></div>
   </div>
 
@@ -67,6 +67,7 @@ h1 { font-size:28px; margin:0 0 4px; }
 const BASE = "https://webhook-kiwify-u4qe.onrender.com";
 let state = {
   faturamento: 0,
+  pixGerados: 0,
   agentes: [
     {id:'jone', nome:'Jone Kwed', setor:'Estratégia', status:'trabalhando', tarefa_atual:'Aguardando status...'},
     {id:'dir', nome:'Coordenador', setor:'Direção', status:'trabalhando', tarefa_atual:'Aguardando status...'},
@@ -75,13 +76,15 @@ let state = {
     {id:'fin', nome:'Financeiro', setor:'Financeiro', status:'aguardando', tarefa_atual:'Aguardando status...'},
     {id:'atd', nome:'Atendimento', setor:'Atendimento', status:'aguardando', tarefa_atual:'Aguardando status...'}
   ],
-  historico: []
+  historico: [],
+  seenOrders: new Set()
 };
 
 function render() {
   document.getElementById('faturamento').textContent = 'R$ ' + state.faturamento.toLocaleString('pt-BR', {minimumFractionDigits:2});
   document.getElementById('kpi-ativos').textContent = state.agentes.filter(a => a.status === 'trabalhando').length;
   document.getElementById('kpi-tarefas').textContent = state.agentes.filter(a => a.tarefa_atual && !a.tarefa_atual.includes('Aguardando')).length;
+  document.getElementById('kpi-pix').textContent = state.pixGerados;
   document.getElementById('ultima').textContent = new Date().toLocaleTimeString('pt-BR');
 
   document.getElementById('areas-grid').innerHTML = state.agentes.map(a => `
@@ -95,30 +98,48 @@ function render() {
     </div>
   `).join('');
 
-  document.getElementById('historico').innerHTML = state.historico.slice(0,10).map(h => 
+  document.getElementById('historico').innerHTML = state.historico.slice(0,12).map(h => 
     `<div><span style="color:#6b7280">${h.ts}</span> <b>${h.agente}</b>: ${h.acao}</div>`
   ).join('');
 }
 
 function log(agente, acao) {
   state.historico.unshift({ts: new Date().toLocaleString('pt-BR'), agente, acao});
-  if (state.historico.length > 30) state.historico.pop();
+  if (state.historico.length > 40) state.historico.pop();
 }
 
 async function buscarVendas() {
   try {
     const res = await fetch(BASE + '/vendas?t=' + Date.now());
     const vendas = await res.json();
-    let total = 0;
-    if (Array.isArray(vendas)) {
-      vendas.forEach(v => total += (v.amount || 0) / 100);
+    if (!Array.isArray(vendas)) return;
+
+    let novoTotal = 0;
+    let novosPix = 0;
+
+    vendas.forEach(v => {
+      const id = v.order_id || v.order_ref;
+      if (!id || state.seenOrders.has(id)) return;
+      state.seenOrders.add(id);
+
+      const valor = (v.amount || 0) / 100;
+      const status = v.order_status || '';
+
+      if (status === 'paid' || v.event === 'compra_aprovada') {
+        novoTotal += valor;
+        log('Kiwify', 'Venda PAGA: R$ ' + valor.toFixed(2) + ' | ' + (v.product_name || 'Produto'));
+      } else if (v.event === 'pix_created' || status === 'waiting_payment') {
+        novosPix++;
+        log('Kiwify', 'Pix gerado: R$ ' + valor.toFixed(2) + ' (aguardando pagamento)');
+      }
+    });
+
+    if (novoTotal > 0) {
+      state.faturamento += novoTotal;
     }
-    if (total !== state.faturamento) {
-      state.faturamento = total;
-      log('Kiwify', vendas.length + ' eventos | Total R$ ' + total.toFixed(2));
-    }
+    state.pixGerados += novosPix;
   } catch(e) {
-    log('Sistema', 'Erro vendas: ' + e.message);
+    log('Sistema', 'Erro ao buscar vendas');
   }
 }
 
@@ -134,7 +155,6 @@ async function buscarStatus() {
           a.status = s.status || 'trabalhando';
         }
       });
-      log('Agentes', 'Status atualizado');
     }
   } catch(e) {}
 }
