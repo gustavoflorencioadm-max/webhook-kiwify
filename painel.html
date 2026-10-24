@@ -26,7 +26,7 @@ h1 { font-size:28px; margin:0 0 4px; }
 </style>
 </head>
 <body>
-<div class="banner">WEBHOOK KIWIFY ATIVO • https://webhook-kiwify-u4qe.onrender.com • Vendas podem ser recebidas</div>
+<div class="banner">WEBHOOK KIWIFY ATIVO • https://webhook-kiwify-u4qe.onrender.com • Vendas + Status dos Agentes</div>
 
 <div class="container">
   <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; margin:16px 0;">
@@ -37,7 +37,7 @@ h1 { font-size:28px; margin:0 0 4px; }
     <div style="text-align:right;">
       <div class="faturamento" id="faturamento">R$ 0,00</div>
       <div style="font-size:12px; color:#9ca3af;">Faturamento Kiwify</div>
-      <button class="btn" onclick="buscarVendas()">Atualizar agora</button>
+      <button class="btn" onclick="atualizarTudo()">Atualizar agora</button>
     </div>
   </div>
 
@@ -64,16 +64,16 @@ h1 { font-size:28px; margin:0 0 4px; }
 </div>
 
 <script>
-const WEBHOOK_URL = "https://webhook-kiwify-u4qe.onrender.com/vendas";
+const BASE = "https://webhook-kiwify-u4qe.onrender.com";
 let state = {
   faturamento: 0,
   agentes: [
-    {id:'jone', nome:'Jone Kwed', setor:'Estratégia', status:'trabalhando', tarefa_atual:'Montando plano de 14 dias para vendas na Kiwify'},
-    {id:'dir', nome:'Coordenador', setor:'Direção', status:'trabalhando', tarefa_atual:'Distribuindo tarefas da semana'},
-    {id:'mkt', nome:'Marketing', setor:'Marketing', status:'trabalhando', tarefa_atual:'Criando roteiros de Reels e posts sobre temas bíblicos'},
-    {id:'ven', nome:'Vendas', setor:'Vendas', status:'trabalhando', tarefa_atual:'Preparando mensagens de prospecção e follow-up'},
-    {id:'fin', nome:'Financeiro', setor:'Financeiro', status:'aguardando', tarefa_atual:'Aguardando dados reais de vendas'},
-    {id:'atd', nome:'Atendimento', setor:'Atendimento', status:'aguardando', tarefa_atual:'Preparando respostas padrão'}
+    {id:'jone', nome:'Jone Kwed', setor:'Estratégia', status:'trabalhando', tarefa_atual:'Aguardando status...'},
+    {id:'dir', nome:'Coordenador', setor:'Direção', status:'trabalhando', tarefa_atual:'Aguardando status...'},
+    {id:'mkt', nome:'Marketing', setor:'Marketing', status:'trabalhando', tarefa_atual:'Aguardando status...'},
+    {id:'ven', nome:'Vendas', setor:'Vendas', status:'trabalhando', tarefa_atual:'Aguardando status...'},
+    {id:'fin', nome:'Financeiro', setor:'Financeiro', status:'aguardando', tarefa_atual:'Aguardando status...'},
+    {id:'atd', nome:'Atendimento', setor:'Atendimento', status:'aguardando', tarefa_atual:'Aguardando status...'}
   ],
   historico: []
 };
@@ -81,7 +81,7 @@ let state = {
 function render() {
   document.getElementById('faturamento').textContent = 'R$ ' + state.faturamento.toLocaleString('pt-BR', {minimumFractionDigits:2});
   document.getElementById('kpi-ativos').textContent = state.agentes.filter(a => a.status === 'trabalhando').length;
-  document.getElementById('kpi-tarefas').textContent = state.agentes.filter(a => a.tarefa_atual).length;
+  document.getElementById('kpi-tarefas').textContent = state.agentes.filter(a => a.tarefa_atual && !a.tarefa_atual.includes('Aguardando')).length;
   document.getElementById('ultima').textContent = new Date().toLocaleTimeString('pt-BR');
 
   document.getElementById('areas-grid').innerHTML = state.agentes.map(a => `
@@ -106,26 +106,48 @@ function log(agente, acao) {
 }
 
 async function buscarVendas() {
-  document.getElementById('ultima').textContent = 'buscando...';
   try {
-    const res = await fetch(WEBHOOK_URL + '?t=' + Date.now());
+    const res = await fetch(BASE + '/vendas?t=' + Date.now());
     const vendas = await res.json();
     let total = 0;
     if (Array.isArray(vendas)) {
       vendas.forEach(v => total += (v.amount || 0) / 100);
     }
-    state.faturamento = total;
-    log('Kiwify', vendas.length + ' eventos | Total R$ ' + total.toFixed(2));
-    render();
+    if (total !== state.faturamento) {
+      state.faturamento = total;
+      log('Kiwify', vendas.length + ' eventos | Total R$ ' + total.toFixed(2));
+    }
   } catch(e) {
-    log('Sistema', 'Erro: ' + e.message);
-    render();
+    log('Sistema', 'Erro vendas: ' + e.message);
   }
 }
 
+async function buscarStatus() {
+  try {
+    const res = await fetch(BASE + '/status?t=' + Date.now());
+    const status = await res.json();
+    if (status && status.agentes) {
+      status.agentes.forEach(s => {
+        const a = state.agentes.find(x => x.id === s.id || x.nome.toLowerCase().includes((s.nome || '').toLowerCase()));
+        if (a && s.tarefa) {
+          a.tarefa_atual = s.tarefa;
+          a.status = s.status || 'trabalhando';
+        }
+      });
+      log('Agentes', 'Status atualizado');
+    }
+  } catch(e) {}
+}
+
+async function atualizarTudo() {
+  document.getElementById('ultima').textContent = 'buscando...';
+  await Promise.all([buscarVendas(), buscarStatus()]);
+  render();
+}
+
 render();
-buscarVendas();
-setInterval(buscarVendas, 30000);
+atualizarTudo();
+setInterval(atualizarTudo, 30000);
 </script>
 </body>
 </html>
