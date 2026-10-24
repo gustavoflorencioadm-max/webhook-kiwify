@@ -47,6 +47,24 @@ class WebhookHandler(BaseHTTPRequestHandler):
         self.wfile.write(b'{"ok":true}')
 
     def do_GET(self):
+        if self.path.startswith("/vendas"):
+            # Retorna as últimas vendas para o painel
+            vendas = []
+            if LOG_FILE.exists():
+                with open(LOG_FILE, "r", encoding="utf-8") as f:
+                    for line in f:
+                        try:
+                            vendas.append(json.loads(line))
+                        except:
+                            pass
+            vendas = vendas[-50:]  # últimas 50
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(vendas, ensure_ascii=False).encode())
+            return
+
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.end_headers()
