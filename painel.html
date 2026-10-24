@@ -4,105 +4,79 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Escritório Online - Livros Digitais Bíblicos</title>
-<script src="https://cdn.tailwindcss.com"></script>
 <style>
-  .status-trabalhando { background: #10b981; }
-  .status-aguardando { background: #f59e0b; }
-  .status-concluido { background: #3b82f6; }
-  .status-problema { background: #ef4444; }
-  .area-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+body { background:#030712; color:#f3f4f6; font-family:system-ui,sans-serif; margin:0; padding:16px; }
+.banner { background:#14532d; text-align:center; padding:8px; font-size:14px; font-weight:600; }
+.container { max-width:1200px; margin:0 auto; }
+h1 { font-size:28px; margin:0 0 4px; }
+.subtitle { color:#4ade80; margin-bottom:16px; }
+.faturamento { font-size:32px; font-family:monospace; color:#4ade80; }
+.btn { background:#15803d; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; margin-top:8px; }
+.btn:hover { background:#166534; }
+.grid { display:grid; gap:12px; }
+.grid-4 { grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); margin:16px 0; }
+.grid-3 { grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); margin-bottom:24px; }
+.card { background:#111827; border:1px solid #374151; border-radius:8px; padding:16px; cursor:pointer; transition:transform .15s; }
+.card:hover { transform:translateY(-2px); }
+.status-trabalhando { background:#10b981; }
+.status-aguardando { background:#f59e0b; }
+.badge { font-size:11px; padding:2px 8px; border-radius:999px; color:white; }
+.kpi { background:#111827; padding:12px; border-radius:8px; font-size:14px; }
+.historico { background:#111827; padding:12px; border-radius:8px; max-height:200px; overflow:auto; font-size:12px; }
 </style>
 </head>
-<body class="bg-gray-950 text-gray-100">
-<div class="bg-green-900 text-center py-2 text-sm font-semibold">
-  WEBHOOK KIWIFY ATIVO • https://webhook-kiwify-u4qe.onrender.com • Vendas podem ser recebidas
-</div>
+<body>
+<div class="banner">WEBHOOK KIWIFY ATIVO • https://webhook-kiwify-u4qe.onrender.com • Vendas podem ser recebidas</div>
 
-<div class="container mx-auto p-4 max-w-7xl">
-  <header class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div class="container">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; margin:16px 0;">
     <div>
-      <h1 class="text-3xl font-bold">Escritório Online de Agentes</h1>
-      <p class="text-green-400">Livros Digitais Bíblicos • Meta R$ 8.000 • Trabalhando com Jone Kwed</p>
+      <h1>Escritório Online de Agentes</h1>
+      <div class="subtitle">Livros Digitais Bíblicos • Meta R$ 8.000 • Trabalhando com Jone Kwed</div>
     </div>
-    <div class="text-right">
-      <div class="text-3xl font-mono text-green-400" id="faturamento">R$ 0,00</div>
-      <div class="text-xs text-gray-400">Faturamento Kiwify</div>
-      <button onclick="buscarVendas()" class="mt-2 text-xs bg-green-700 hover:bg-green-600 px-3 py-1 rounded">Atualizar agora</button>
+    <div style="text-align:right;">
+      <div class="faturamento" id="faturamento">R$ 0,00</div>
+      <div style="font-size:12px; color:#9ca3af;">Faturamento Kiwify</div>
+      <button class="btn" onclick="buscarVendas()">Atualizar agora</button>
     </div>
-  </header>
-
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 text-sm">
-    <div class="bg-gray-900 p-3 rounded">Agentes ativos: <b id="kpi-ativos">0</b></div>
-    <div class="bg-gray-900 p-3 rounded">Tarefas em andamento: <b id="kpi-tarefas">0</b></div>
-    <div class="bg-gray-900 p-3 rounded">Aprovações pendentes: <b id="kpi-aprov" class="text-red-400">0</b></div>
-    <div class="bg-gray-900 p-3 rounded">Última atualização: <span id="ultima">agora</span></div>
   </div>
 
-  <h2 class="text-xl mb-3">Clique em uma área para ver o que está sendo trabalhado agora</h2>
-  <div id="areas-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"></div>
-
-  <div id="detalhe" class="hidden bg-gray-900 rounded-lg p-6 mb-6 border border-gray-700">
-    <div class="flex justify-between items-start mb-4">
-      <div>
-        <h3 id="detalhe-titulo" class="text-2xl font-bold"></h3>
-        <p id="detalhe-objetivo" class="text-gray-400"></p>
-      </div>
-      <button onclick="fecharDetalhe()" class="text-gray-400 hover:text-white">✕ Fechar</button>
-    </div>
-    <div id="detalhe-conteudo" class="space-y-3"></div>
+  <div class="grid grid-4">
+    <div class="kpi">Agentes ativos: <b id="kpi-ativos">0</b></div>
+    <div class="kpi">Tarefas em andamento: <b id="kpi-tarefas">0</b></div>
+    <div class="kpi">Aprovações pendentes: <b>0</b></div>
+    <div class="kpi">Última atualização: <span id="ultima">agora</span></div>
   </div>
 
-  <div class="grid md:grid-cols-2 gap-6">
+  <h2 style="font-size:18px; margin-bottom:12px;">Clique em uma área para ver o que está sendo trabalhado agora</h2>
+  <div id="areas-grid" class="grid grid-3"></div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
     <div>
-      <h3 class="text-lg font-semibold mb-2">Integrações e APIs</h3>
-      <div id="integracoes" class="space-y-2 text-sm"></div>
+      <h3>Integrações e APIs</h3>
+      <div id="integracoes"></div>
     </div>
     <div>
-      <h3 class="text-lg font-semibold mb-2">Histórico recente</h3>
-      <div id="historico" class="bg-gray-900 rounded p-3 max-h-64 overflow-auto text-xs space-y-1"></div>
+      <h3>Histórico recente</h3>
+      <div id="historico" class="historico"></div>
     </div>
   </div>
 </div>
 
 <script>
-const STORAGE_KEY = 'escritorio_livros_biblicos_v2';
-
+const WEBHOOK_URL = "https://webhook-kiwify-u4qe.onrender.com/vendas";
 let state = {
   faturamento: 0,
   agentes: [
-    {id:'jone', nome:'Jone Kwed', setor:'Estratégia', status:'trabalhando', objetivo:'Estratégia dos livros digitais e coordenação com o escritório', tarefa_atual:'Montando plano de 14 dias para vendas na Kiwify'},
-    {id:'dir', nome:'Coordenador', setor:'Direção', status:'trabalhando', objetivo:'Orquestrar a meta de R$ 8.000', tarefa_atual:'Distribuindo tarefas da semana'},
-    {id:'mkt', nome:'Marketing', setor:'Marketing', status:'trabalhando', objetivo:'Gerar tráfego e conteúdo para os livros', tarefa_atual:'Criando roteiros de Reels e posts sobre temas bíblicos'},
-    {id:'ven', nome:'Vendas', setor:'Vendas', status:'trabalhando', objetivo:'Converter interessados em compradores', tarefa_atual:'Preparando mensagens de prospecção e follow-up'},
-    {id:'fin', nome:'Financeiro', setor:'Financeiro', status:'aguardando', objetivo:'Acompanhar vendas e taxas da Kiwify', tarefa_atual:'Aguardando dados reais de vendas'},
-    {id:'atd', nome:'Atendimento', setor:'Atendimento', status:'aguardando', objetivo:'Suporte aos compradores dos livros', tarefa_atual:'Preparando respostas padrão'}
+    {id:'jone', nome:'Jone Kwed', setor:'Estratégia', status:'trabalhando', tarefa_atual:'Montando plano de 14 dias para vendas na Kiwify'},
+    {id:'dir', nome:'Coordenador', setor:'Direção', status:'trabalhando', tarefa_atual:'Distribuindo tarefas da semana'},
+    {id:'mkt', nome:'Marketing', setor:'Marketing', status:'trabalhando', tarefa_atual:'Criando roteiros de Reels e posts sobre temas bíblicos'},
+    {id:'ven', nome:'Vendas', setor:'Vendas', status:'trabalhando', tarefa_atual:'Preparando mensagens de prospecção e follow-up'},
+    {id:'fin', nome:'Financeiro', setor:'Financeiro', status:'aguardando', tarefa_atual:'Aguardando dados reais de vendas'},
+    {id:'atd', nome:'Atendimento', setor:'Atendimento', status:'aguardando', tarefa_atual:'Preparando respostas padrão'}
   ],
-  historico: [],
-  integracoes: [
-    {nome: 'Kiwify', status: 'Webhook ativo', necessidade: 'Já configurado', doc: 'https://docs.kiwify.com.br'},
-    {nome: 'WhatsApp Business', status: 'Não configurado', necessidade: 'Conta Business + API', doc: 'Meta Cloud API'}
-  ]
+  historico: []
 };
-
-function load() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    const parsed = JSON.parse(saved);
-    state = {...state, ...parsed};
-  }
-  log('Sistema', 'Painel carregado');
-  render();
-}
-
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-function log(agente, acao) {
-  state.historico.unshift({ts: new Date().toLocaleString('pt-BR'), agente, acao});
-  if (state.historico.length > 50) state.historico.pop();
-  save();
-}
 
 function render() {
   document.getElementById('faturamento').textContent = 'R$ ' + state.faturamento.toLocaleString('pt-BR', {minimumFractionDigits:2});
@@ -110,82 +84,48 @@ function render() {
   document.getElementById('kpi-tarefas').textContent = state.agentes.filter(a => a.tarefa_atual).length;
   document.getElementById('ultima').textContent = new Date().toLocaleTimeString('pt-BR');
 
-  const grid = document.getElementById('areas-grid');
-  grid.innerHTML = state.agentes.map(a => `
-    <div class="area-card bg-gray-900 border border-gray-700 rounded-lg p-4 cursor-pointer transition" onclick="abrirDetalhe('${a.id}')">
-      <div class="flex justify-between items-start mb-2">
-        <div class="font-bold text-lg">${a.nome}</div>
-        <span class="status-${a.status} text-xs px-2 py-1 rounded-full text-white">${a.status}</span>
+  document.getElementById('areas-grid').innerHTML = state.agentes.map(a => `
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+        <b>${a.nome}</b>
+        <span class="badge status-${a.status}">${a.status}</span>
       </div>
-      <div class="text-xs text-gray-400 mb-2">${a.setor}</div>
-      <div class="text-sm">${a.tarefa_atual || 'Aguardando tarefa'}</div>
+      <div style="font-size:12px; color:#9ca3af; margin-bottom:8px;">${a.setor}</div>
+      <div style="font-size:14px;">${a.tarefa_atual || 'Aguardando'}</div>
     </div>
   `).join('');
 
-  document.getElementById('integracoes').innerHTML = state.integracoes.map(i => `
-    <div class="bg-gray-900 p-3 rounded border border-gray-800">
-      <div class="font-medium">${i.nome}</div>
-      <div class="text-orange-400 text-xs">${i.status}</div>
-    </div>
-  `).join('');
-
-  document.getElementById('historico').innerHTML = state.historico.slice(0,15).map(h => 
-    `<div><span class="text-gray-500">${h.ts}</span> <b>${h.agente}</b>: ${h.acao}</div>`
+  document.getElementById('historico').innerHTML = state.historico.slice(0,10).map(h => 
+    `<div><span style="color:#6b7280">${h.ts}</span> <b>${h.agente}</b>: ${h.acao}</div>`
   ).join('');
 }
 
-function abrirDetalhe(id) {
-  const a = state.agentes.find(x => x.id === id);
-  if (!a) return;
-  document.getElementById('detalhe').classList.remove('hidden');
-  document.getElementById('detalhe-titulo').textContent = a.nome + ' — ' + a.setor;
-  document.getElementById('detalhe-objetivo').textContent = a.objetivo;
-  document.getElementById('detalhe-conteudo').innerHTML = `
-    <div class="bg-gray-800 p-3 rounded">
-      <div class="text-xs text-gray-400">Trabalhando agora</div>
-      <div class="mt-1">${a.tarefa_atual || 'Nenhuma tarefa ativa'}</div>
-    </div>
-  `;
-  log('Você', 'Visualizou área: ' + a.nome);
-  render();
+function log(agente, acao) {
+  state.historico.unshift({ts: new Date().toLocaleString('pt-BR'), agente, acao});
+  if (state.historico.length > 30) state.historico.pop();
 }
-
-function fecharDetalhe() {
-  document.getElementById('detalhe').classList.add('hidden');
-}
-
-const WEBHOOK_URL = "https://webhook-kiwify-u4qe.onrender.com/vendas";
 
 async function buscarVendas() {
-  const statusEl = document.getElementById('ultima');
-  statusEl.textContent = 'buscando...';
+  document.getElementById('ultima').textContent = 'buscando...';
   try {
-    const res = await fetch(WEBHOOK_URL + "?t=" + Date.now());
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const res = await fetch(WEBHOOK_URL + '?t=' + Date.now());
     const vendas = await res.json();
-
     let total = 0;
     if (Array.isArray(vendas)) {
-      vendas.forEach(v => {
-        const amount = v.amount || 0;
-        total += Number(amount) / 100;
-      });
+      vendas.forEach(v => total += (v.amount || 0) / 100);
     }
-
     state.faturamento = total;
-    log('Kiwify', `${vendas.length || 0} eventos | Total R$ ${total.toFixed(2)}`);
-    statusEl.textContent = new Date().toLocaleTimeString('pt-BR');
+    log('Kiwify', vendas.length + ' eventos | Total R$ ' + total.toFixed(2));
     render();
-  } catch (e) {
-    statusEl.textContent = 'erro ao buscar';
-    log('Sistema', 'Falha ao buscar vendas: ' + e.message);
+  } catch(e) {
+    log('Sistema', 'Erro: ' + e.message);
     render();
   }
 }
 
-setInterval(buscarVendas, 30000);
-load();
+render();
 buscarVendas();
+setInterval(buscarVendas, 30000);
 </script>
 </body>
 </html>
