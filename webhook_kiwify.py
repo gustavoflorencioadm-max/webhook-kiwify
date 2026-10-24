@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Receptor de Webhook Kiwify - Versão pronta para deploy
-Salva vendas em data/vendas_kiwify.jsonl
+Receptor de Webhook Kiwify + Status dos Agentes
 """
 import os
 import json
@@ -13,6 +12,7 @@ PORT = int(os.getenv("PORT", "8080"))
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 LOG_FILE = DATA_DIR / "vendas_kiwify.jsonl"
+STATUS_FILE = DATA_DIR / "agentes_status.json"
 
 class WebhookHandler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -23,6 +23,16 @@ class WebhookHandler(BaseHTTPRequestHandler):
             payload = json.loads(body.decode("utf-8"))
         except Exception:
             payload = {"raw": body.decode("utf-8", errors="ignore")}
+
+        if self.path.startswith("/status"):
+            with open(STATUS_FILE, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(b'{"ok":true}')
+            return
 
         entry = {
             "received_at": datetime.now().isoformat(),
@@ -39,8 +49,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-        print(f"[{entry['received_at']}] {entry['event']} | {entry['order_status']} | {entry['order_ref']}")
-
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
@@ -48,7 +56,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/vendas"):
-            # Retorna as últimas vendas para o painel
             vendas = []
             if LOG_FILE.exists():
                 with open(LOG_FILE, "r", encoding="utf-8") as f:
@@ -57,12 +64,24 @@ class WebhookHandler(BaseHTTPRequestHandler):
                             vendas.append(json.loads(line))
                         except:
                             pass
-            vendas = vendas[-50:]  # últimas 50
+            vendas = vendas[-50:]
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(json.dumps(vendas, ensure_ascii=False).encode())
+            return
+
+        if self.path.startswith("/status"):
+            status = {}
+            if STATUS_FILE.exists():
+                with open(STATUS_FILE, "r", encoding="utf-8") as f:
+                    status = json.load(f)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(status, ensure_ascii=False).encode())
             return
 
         self.send_response(200)
