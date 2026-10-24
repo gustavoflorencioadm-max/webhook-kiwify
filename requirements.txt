@@ -1,0 +1,2 @@
+# Nenhum pacote externo necessário para este webhook
+# Arquivo criado apenas para o Render não falhar no build
