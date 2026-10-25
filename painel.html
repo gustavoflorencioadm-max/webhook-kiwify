@@ -36,7 +36,7 @@ h1 { font-size:28px; margin:0 0 4px; }
     </div>
     <div style="text-align:right;">
       <div class="faturamento" id="faturamento">R$ 0,00</div>
-      <div style="font-size:12px; color:#9ca3af;">Faturamento confirmado</div>
+      <div style="font-size:12px; color:#9ca3af;">Faturamento líquido confirmado</div>
       <button class="btn" onclick="atualizarTudo()">Atualizar agora</button>
     </div>
   </div>
@@ -81,7 +81,7 @@ let state = {
 };
 
 function render() {
-  document.getElementById('faturamento').textContent = 'R$ ' + state.faturamento.toLocaleString('pt-BR', {minimumFractionDigits:2});
+  document.getElementById('faturamento').textContent = 'R$ ' + state.faturamento.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
   document.getElementById('kpi-ativos').textContent = state.agentes.filter(a => a.status === 'trabalhando').length;
   document.getElementById('kpi-tarefas').textContent = state.agentes.filter(a => a.tarefa_atual && !a.tarefa_atual.includes('Aguardando')).length;
   document.getElementById('kpi-pix').textContent = state.pixGerados;
@@ -108,36 +108,120 @@ function log(agente, acao) {
   if (state.historico.length > 40) state.historico.pop();
 }
 
+function numero(n) {
+  if (n == null || n === '') return null;
+  const x = Number(n);
+  return Number.isFinite(x) ? x : null;
+}
+
+function comissoes(v) {
+  const fp = v && v.full_payload;
+  if (fp && fp.Commissions && typeof fp.Commissions === 'object') return fp.Commissions;
+  return {};
+}
+
+function valorLiquidoCentavos(v) {
+  const c = comissoes(v);
+  const my = numero(c.my_commission != null ? c.my_commission : v.my_commission);
+  if (my != null) return my;
+  const amount = numero(v.amount != null ? v.amount : c.charge_amount);
+  const fee = numero(c.kiwify_fee != null ? c.kiwify_fee : v.kiwify_fee);
+  if (amount != null && fee != null) return amount - fee;
+  if (amount != null) return amount;
+  return 0;
+}
+
+function valorBrutoCentavos(v) {
+  const c = comissoes(v);
+  return numero(v.amount != null ? v.amount : c.charge_amount);
+}
+
+function formatReais(centavos) {
+  return (centavos / 100).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function textoValor(v, extra) {
+  const liquido = valorLiquidoCentavos(v);
+  const bruto = valorBrutoCentavos(v);
+  const partes = [];
+  if (bruto != null && bruto !== liquido) partes.push('bruto R$ ' + formatReais(bruto));
+  if (extra) partes.push(extra);
+  let txt = 'R$ ' + formatReais(liquido);
+  if (partes.length) txt += ' (' + partes.join(', ') + ')';
+  return txt;
+}
+
+function eventoPago(v) {
+  const status = v.order_status || '';
+  const event = v.event || '';
+  return status === 'paid' || event === 'order_approved' || event === 'compra_aprovada';
+}
+
+function eventoPixAguardando(v) {
+  return v.event === 'pix_created' || (v.order_status || '') === 'waiting_payment';
+}
+
+function idPedido(v) {
+  return v.order_id || v.order_ref || '';
+}
+
+function temMyCommission(v) {
+  const c = comissoes(v);
+  return numero(c.my_commission != null ? c.my_commission : v.my_commission) != null;
+}
+
+let vendasPromise = null;
+
 async function buscarVendas() {
+  if (vendasPromise) return vendasPromise;
+  vendasPromise = carregarVendas().finally(() => { vendasPromise = null; });
+  return vendasPromise;
+}
+
+async function carregarVendas() {
   try {
     const res = await fetch(BASE + '/vendas?t=' + Date.now());
     const vendas = await res.json();
     if (!Array.isArray(vendas)) return;
 
-    let novoTotal = 0;
-    let novosPix = 0;
+    const pagos = new Map();
+    const pixPendentes = new Set();
 
     vendas.forEach(v => {
-      const id = v.order_id || v.order_ref;
-      if (!id || state.seenOrders.has(id)) return;
-      state.seenOrders.add(id);
-
-      const valor = (v.amount || 0) / 100;
-      const status = v.order_status || '';
-
-      if (status === 'paid' || v.event === 'compra_aprovada') {
-        novoTotal += valor;
-        log('Kiwify', 'Venda PAGA: R$ ' + valor.toFixed(2) + ' | ' + (v.product_name || 'Produto'));
-      } else if (v.event === 'pix_created' || status === 'waiting_payment') {
-        novosPix++;
-        log('Kiwify', 'Pix gerado: R$ ' + valor.toFixed(2) + ' (aguardando pagamento)');
+      const id = idPedido(v);
+      if (!id) return;
+      if (eventoPago(v)) {
+        const atual = pagos.get(id);
+        if (!atual || (!temMyCommission(atual) && temMyCommission(v))) pagos.set(id, v);
+      } else if (eventoPixAguardando(v)) {
+        pixPendentes.add(id);
       }
     });
 
-    if (novoTotal > 0) {
-      state.faturamento += novoTotal;
-    }
-    state.pixGerados += novosPix;
+    let totalCentavos = 0;
+    pagos.forEach(v => { totalCentavos += valorLiquidoCentavos(v); });
+    state.faturamento = totalCentavos / 100;
+
+    let pix = 0;
+    pixPendentes.forEach(id => { if (!pagos.has(id)) pix++; });
+    state.pixGerados = pix;
+
+    vendas.forEach(v => {
+      const id = idPedido(v);
+      if (!id) return;
+      if (eventoPago(v)) {
+        const key = id + ':paid';
+        if (state.seenOrders.has(key)) return;
+        state.seenOrders.add(key);
+        const fonte = pagos.get(id) || v;
+        log('Kiwify', 'Venda PAGA: ' + textoValor(fonte) + ' | ' + (fonte.product_name || v.product_name || 'Produto'));
+      } else if (eventoPixAguardando(v)) {
+        const key = id + ':pix';
+        if (state.seenOrders.has(key)) return;
+        state.seenOrders.add(key);
+        log('Kiwify', 'Pix gerado: ' + textoValor(v, 'aguardando pagamento'));
+      }
+    });
   } catch(e) {
     log('Sistema', 'Erro ao buscar vendas');
   }
