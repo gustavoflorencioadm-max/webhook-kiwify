@@ -77,7 +77,8 @@ let state = {
     {id:'atd', nome:'Atendimento', setor:'Atendimento', status:'aguardando', tarefa_atual:'Aguardando status...'}
   ],
   historico: [],
-  seenOrders: new Set()
+  seenOrders: new Set(),
+  avisouWebhook: false
 };
 
 function render() {
@@ -172,6 +173,57 @@ function temMyCommission(v) {
 
 let vendasPromise = null;
 
+function chaveEvento(v) {
+  const id = idPedido(v);
+  if (!id) return '';
+  return id + '\n' + (v.event || '') + '\n' + (v.order_status || '');
+}
+
+function mesclarVendas(listas) {
+  const escolhidos = new Map();
+  const ordem = [];
+  const semChave = [];
+  listas.forEach(lista => {
+    (lista || []).forEach(v => {
+      if (!v || typeof v !== 'object') return;
+      const chave = chaveEvento(v);
+      if (!chave) {
+        semChave.push(v);
+        return;
+      }
+      const atual = escolhidos.get(chave);
+      if (!atual) {
+        escolhidos.set(chave, v);
+        ordem.push(chave);
+        return;
+      }
+      if (!temMyCommission(atual) && temMyCommission(v)) escolhidos.set(chave, v);
+    });
+  });
+  return ordem.map(chave => escolhidos.get(chave)).concat(semChave);
+}
+
+async function buscarJson(url) {
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('http ' + res.status);
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error('formato');
+  return data;
+}
+
+async function carregarHistorico() {
+  const urls = [
+    'vendas-historico.json?t=' + Date.now(),
+    BASE + '/vendas-historico.json?t=' + Date.now()
+  ];
+  for (const url of urls) {
+    try {
+      return await buscarJson(url);
+    } catch (e) {}
+  }
+  return null;
+}
+
 async function buscarVendas() {
   if (vendasPromise) return vendasPromise;
   vendasPromise = carregarVendas().finally(() => { vendasPromise = null; });
@@ -179,11 +231,23 @@ async function buscarVendas() {
 }
 
 async function carregarVendas() {
-  try {
-    const res = await fetch(BASE + '/vendas?t=' + Date.now());
-    const vendas = await res.json();
-    if (!Array.isArray(vendas)) return;
+  const [aoVivo, historico] = await Promise.all([
+    buscarJson(BASE + '/vendas?t=' + Date.now()).catch(() => null),
+    carregarHistorico()
+  ]);
 
+  if (!aoVivo && !historico) {
+    log('Sistema', 'Erro ao buscar vendas');
+    return;
+  }
+  if (!aoVivo && !state.avisouWebhook) {
+    state.avisouWebhook = true;
+    log('Sistema', 'Webhook sem resposta; faturamento usa vendas-historico.json');
+  }
+
+  const vendas = mesclarVendas([aoVivo || [], historico || []]);
+
+  try {
     const pagos = new Map();
     const pixPendentes = new Set();
 
@@ -222,7 +286,7 @@ async function carregarVendas() {
         log('Kiwify', 'Pix gerado: ' + textoValor(v, 'aguardando pagamento'));
       }
     });
-  } catch(e) {
+  } catch (e) {
     log('Sistema', 'Erro ao buscar vendas');
   }
 }

@@ -1,0 +1,30 @@
+[
+  {
+    "received_at": "2026-10-25T18:37:00-03:00",
+    "event": "order_approved",
+    "order_status": "paid",
+    "order_id": "f5bfb63b-eebc-41bf-bbc2-a3221edeb980",
+    "order_ref": "ePZlGrs",
+    "payment_method": "pix",
+    "product_name": "Meu Natal com Jesus – Pequenos da Fé (PDF para imprimir)",
+    "amount": 990,
+    "kiwify_fee": 338,
+    "my_commission": 652,
+    "full_payload": {
+      "webhook_event_type": "order_approved",
+      "order_status": "paid",
+      "order_id": "f5bfb63b-eebc-41bf-bbc2-a3221edeb980",
+      "order_ref": "ePZlGrs",
+      "payment_method": "pix",
+      "approved_date": "2026-10-25 18:37",
+      "Product": {
+        "product_name": "Meu Natal com Jesus – Pequenos da Fé (PDF para imprimir)"
+      },
+      "Commissions": {
+        "charge_amount": 990,
+        "kiwify_fee": 338,
+        "my_commission": 652
+      }
+    }
+  }
+]
